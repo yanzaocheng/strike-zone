@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strike Zone</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2314161b'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='%23e9b347' stroke-width='5'/%3E%3Cpath d='M32 6v14M32 44v14M6 32h14M44 32h14' stroke='%23e9b347' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='32' r='3.5' fill='%23ff5a4f'/%3E%3C/svg%3E">
+<style>
+/* ================================================================
+   Strike Zone —— 界面样式（HUD / 菜单 / 购买界面 / 计分板）
+   ================================================================ */
+:root {
+  --t: #e9b347;          /* T 阵营色 */
+  --ct: #69a7ff;         /* CT 阵营色 */
+  --txt: #f3efe4;
+  --dim: rgba(243, 239, 228, .55);
+  --panel: rgba(10, 12, 16, .62);
+  --panel2: rgba(20, 23, 30, .86);
+  --line: rgba(255, 255, 255, .10);
+  --good: #7bd88f;
+  --bad: #ff5a4f;
+  --num: "Bahnschrift", "DIN Alternate", "Arial Narrow", "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; background: #0b0c0e;
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  color: var(--txt); user-select: none; -webkit-user-select: none;
+}
+#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hidden { display: none !important; }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+
+/* ---------- 全屏特效层 ---------- */
+.fx { position: fixed; inset: 0; pointer-events: none; }
+#smokeFx { background: rgb(150, 152, 150); opacity: 0; }
+#flashBurn { width: 100%; height: 100%; opacity: 0; mix-blend-mode: screen; }
+#flashFx { background: #fff; opacity: 0; }
+#hurtFx { opacity: 0; background: radial-gradient(ellipse at center, rgba(255,0,0,0) 45%, rgba(190,0,0,.55) 100%); }
+#lowHpFx { opacity: 0; background: radial-gradient(ellipse at center, rgba(120,0,0,0) 55%, rgba(120,0,0,.6) 100%); }
+#deathFx { opacity: 0; background: rgba(40, 0, 0, .35); transition: opacity .6s; }
+#scopeFx { display: none; }
+#scopeFx .lens {
+  position: absolute; left: 50%; top: 50%; width: 96vmin; height: 96vmin; transform: translate(-50%, -50%);
+  border-radius: 50%; box-shadow: 0 0 0 200vmax #000, inset 0 0 6vmin 2vmin rgba(0,0,0,.85);
+}
+#scopeFx .h { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #000; }
+#scopeFx .v { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #000; }
+#scopeFx .h2 { position: absolute; left: 50%; top: 50%; width: 40vmin; height: 3px; transform: translate(-50%, -1px); }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+#radarWrap { position: absolute; left: 18px; top: 18px; width: 210px; }
+#radar { width: 210px; height: 210px; display: block; border-radius: 50%; background: rgba(8,10,12,.55); box-shadow: 0 0 0 2px rgba(255,255,255,.12), 0 4px 18px rgba(0,0,0,.4); }
+#locName { margin-top: 6px; text-align: center; font-size: 13px; color: var(--dim); letter-spacing: 1px; }
+#moneyBox { position: absolute; left: 18px; top: 262px; display: flex; align-items: baseline; gap: 10px; }
+#money { font-family: var(--num); font-size: 26px; color: #9fe39a; font-weight: 600; }
+#moneyDelta { font-family: var(--num); font-size: 16px; }
+#buyTag { font-size: 12px; padding: 2px 7px; border-radius: 3px; background: rgba(123,216,143,.22); color: #b9f5c2; border: 1px solid rgba(123,216,143,.4); }
+
+#topBar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; gap: 0; }
+#topBar .side { display: flex; align-items: center; gap: 4px; padding: 0 10px; background: var(--panel); min-width: 150px; }
+#topBar .side.t { justify-content: flex-end; border-bottom: 2px solid var(--t); }
+#topBar .side.ct { justify-content: flex-start; border-bottom: 2px solid var(--ct); }
+#topBar .score { font-family: var(--num); font-size: 30px; font-weight: 700; width: 46px; text-align: center; padding: 2px 0; }
+#topBar .t .score { color: var(--t); }
+#topBar .ct .score { color: var(--ct); }
+#topBar .mid { background: rgba(0,0,0,.72); padding: 4px 16px; text-align: center; min-width: 96px; }
+#timer { font-family: var(--num); font-size: 28px; font-weight: 600; line-height: 1.1; }
+#timer.bomb { color: var(--bad); }
+#roundNo { font-size: 11px; color: var(--dim); letter-spacing: 1px; }
+.alive { display: flex; gap: 3px; }
+.alive i { width: 9px; height: 18px; border-radius: 2px; background: currentColor; opacity: .95; display: block; }
+.alive i.dead { opacity: .18; }
+.t .alive { color: var(--t); }
+.ct .alive { color: var(--ct); }
+
+#killFeed { position: absolute; top: 16px; right: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.kf { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(0,0,0,.55); font-size: 14px; border-radius: 2px; transition: opacity .5s; white-space: nowrap; }
+.kf.me { box-shadow: inset 0 0 0 2px rgba(255, 70, 60, .85); background: rgba(40, 0, 0, .55); }
+.kf .T { color: var(--t); } .kf .CT { color: var(--ct); }
+.kf .wpn { color: #ddd; font-size: 12px; padding: 1px 6px; border: 1px solid rgba(255,255,255,.25); border-radius: 2px; }
+.kf svg { width: 16px; height: 16px; }
+
+#crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+#crosshair i { position: absolute; display: block; background: #4dff7a; box-shadow: 0 0 0 1px rgba(0,0,0,.55); }
+#hitMarker { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+#hitMarker i { position: absolute; width: 2px; height: 9px; background: #fff; left: -1px; top: -4.5px; box-shadow: 0 0 2px #000; }
+#hitMarker.head i { background: #ff4a3d; }
+#dmgDirs { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.dmgArc { position: absolute; left: -110px; top: -110px; width: 220px; height: 220px; border-radius: 50%;
+  border: 7px solid transparent; border-top-color: rgba(255, 40, 30, .9); filter: drop-shadow(0 0 4px rgba(255,0,0,.7)); transition: opacity .9s linear; }
+
+#hint { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-size: 16px; padding: 6px 14px; background: rgba(0,0,0,.45); border-radius: 3px; white-space: nowrap; }
+#hint:empty { display: none; }
+#hint b { color: #ffd76a; }
+#progress { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); width: 300px; }
+#progressLabel { text-align: center; font-size: 14px; margin-bottom: 5px; letter-spacing: 1px; }
+#progress .track { height: 8px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); }
+#progressFill { height: 100%; width: 0; background: linear-gradient(90deg, #ffb13b, #ffd76a); }
+#progress.defuse #progressFill { background: linear-gradient(90deg, #4f9dff, #9cc7ff); }
+#centerMsg { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); text-align: center; font-size: 24px; font-weight: 600; letter-spacing: 2px; white-space: nowrap; transition: opacity .4s; }
+#centerMsg small { display: block; font-size: 15px; font-weight: 400; color: var(--dim); letter-spacing: 1px; margin-top: 4px; }
+#bombInfo { position: absolute; top: 86px; left: 50%; transform: translateX(-50%); font-size: 14px; padding: 3px 12px; background: rgba(120, 0, 0, .55); border: 1px solid rgba(255, 90, 80, .5); letter-spacing: 1px; }
+#bombInfo:empty { display: none; }
+
+#hpBox { position: absolute; left: 18px; bottom: 18px; display: flex; gap: 10px; }
+.stat { display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; background: var(--panel); border-radius: 2px; min-width: 124px; position: relative; overflow: hidden; }
+.stat svg { width: 22px; height: 22px; fill: currentColor; opacity: .9; }
+.stat .v { font-family: var(--num); font-size: 34px; font-weight: 600; line-height: 1; min-width: 56px; }
+.stat .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: currentColor; opacity: .75; transition: width .2s; }
+#hpStat.low { color: var(--bad); }
+#armorStat .helm { font-size: 11px; color: var(--dim); position: absolute; right: 8px; top: 5px; }
+
+#weaponBox { position: absolute; right: 18px; bottom: 18px; text-align: right; }
+#invList { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; margin-bottom: 8px; }
+.inv { font-size: 13px; padding: 3px 10px; background: rgba(0,0,0,.35); color: var(--dim); border-right: 3px solid transparent; }
+.inv.on { color: var(--txt); background: rgba(0,0,0,.6); border-right-color: var(--t); }
+.inv kbd { font-family: var(--num); font-size: 11px; opacity: .7; margin-right: 6px; }
+#ammoPanel { display: inline-flex; align-items: baseline; gap: 8px; padding: 6px 16px; background: var(--panel); }
+#ammoMag { font-family: var(--num); font-size: 40px; font-weight: 700; line-height: 1; }
+#ammoMag.low { color: var(--bad); }
+#ammoRes { font-family: var(--num); font-size: 20px; color: var(--dim); }
+#wpnName { font-size: 13px; color: var(--dim); margin-right: 6px; }
+
+#spectate { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); text-align: center; font-size: 15px; padding: 8px 18px; background: rgba(0,0,0,.55); }
+#spectate:empty { display: none; }
+#fps { position: absolute; right: 8px; top: 50%; font-family: var(--num); font-size: 12px; color: rgba(255,255,255,.55); }
+
+/* ---------- 回合结束横幅 ---------- */
+#roundBanner { position: fixed; left: 0; right: 0; top: 17%; text-align: center; pointer-events: none; opacity: 0; transition: opacity .35s, transform .35s; transform: translateY(-10px); }
+#roundBanner.show { opacity: 1; transform: none; }
+#roundBanner .box { display: inline-block; padding: 14px 60px 16px; background: linear-gradient(90deg, transparent, rgba(0,0,0,.78) 18%, rgba(0,0,0,.78) 82%, transparent); }
+#roundBanner .title { font-size: 40px; font-weight: 800; letter-spacing: 6px; }
+#roundBanner .title.T { color: var(--t); } #roundBanner .title.CT { color: var(--ct); }
+#roundBanner .sub { font-size: 16px; color: var(--dim); margin-top: 4px; letter-spacing: 2px; }
+#roundBanner .mvp { font-size: 15px; margin-top: 8px; color: #ffd76a; }
+
+/* ---------- 面板通用 ---------- */
+.panel { background: var(--panel2); border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+button, .btn {
+  font: inherit; color: var(--txt); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+  padding: 10px 18px; cursor: pointer; border-radius: 2px; transition: background .15s, border-color .15s, transform .1s;
+}
+button:hover { background: rgba(233, 179, 71, .18); border-color: rgba(233, 179, 71, .6); }
+button:active { transform: translateY(1px); }
+button.primary { background: linear-gradient(180deg, #f0bd52, #d49a2c); color: #1b1407; border-color: #f7cf7a; font-weight: 700; }
+button.primary:hover { background: linear-gradient(180deg, #ffd06a, #e3a936); }
+
+/* ---------- 购买菜单 ---------- */
+#buyMenu { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1060px, 94vw); padding: 18px 20px 16px; pointer-events: auto; }
+#buyMenu header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+#buyMenu h2 { margin: 0; font-size: 22px; letter-spacing: 3px; }
+#buyMenu .money { font-family: var(--num); font-size: 26px; color: #9fe39a; }
+#buyMenu .timeLeft { color: var(--dim); font-size: 13px; }
+#buyCols { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.bcol h3 { margin: 0 0 8px; font-size: 13px; color: var(--dim); font-weight: 600; letter-spacing: 2px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.bcol h3 kbd { font-family: var(--num); color: var(--t); margin-right: 6px; }
+.bitem { position: relative; display: block; width: 100%; text-align: left; padding: 9px 10px 8px; margin-bottom: 6px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+.bitem .nm { font-size: 14px; font-weight: 600; display: block; }
+.bitem .ds { font-size: 11px; color: var(--dim); display: block; margin-top: 2px; min-height: 14px; }
+.bitem .pr { position: absolute; right: 9px; top: 9px; font-family: var(--num); font-size: 14px; color: #9fe39a; }
+.bitem kbd { font-family: var(--num); font-size: 11px; color: var(--t); margin-right: 5px; }
+.bitem.cant { opacity: .38; }
+.bitem.cant .pr { color: var(--bad); }
+.bitem.owned { border-color: rgba(123,216,143,.55); }
+.bitem.owned::after { content: "已拥有"; position: absolute; right: 9px; bottom: 7px; font-size: 11px; color: var(--good); }
+.bitem.flash { animation: buyflash .35s; }
+@keyframes buyflash { from { background: rgba(123,216,143,.45); } to { background: rgba(255,255,255,.04); } }
+#buyMenu footer { margin-top: 10px; font-size: 12px; color: var(--dim); display: flex; justify-content: space-between; }
+#buyMsg { color: #ffd76a; }
+
+/* ---------- 计分板 ---------- */
+#scoreboard { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(820px, 94vw); padding: 16px 20px; }
+#scoreboard table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 12px; table-layout: fixed; }
+#scoreboard th { text-align: left; font-weight: 600; color: var(--dim); font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+#scoreboard td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
+#scoreboard td.n, #scoreboard th.n { text-align: right; font-family: var(--num); }
+#scoreboard tr.dead td { opacity: .45; }
+#scoreboard tr.me td { background: rgba(233,179,71,.12); }
+#scoreboard .tt { color: var(--t); font-weight: 700; letter-spacing: 2px; }
+#scoreboard .ctt { color: var(--ct); font-weight: 700; letter-spacing: 2px; }
+#scoreboard caption { text-align: left; padding: 4px 0 6px; font-size: 15px; }
+
+/* ---------- 全屏菜单 ---------- */
+.screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: auto;
+  background: radial-gradient(ellipse at 30% 40%, rgba(20,16,10,.25), rgba(4,5,7,.82)); }
+.menuBox { width: min(520px, 92vw); padding: 30px 34px; }
+.logo { font-size: 58px; font-weight: 900; letter-spacing: 8px; line-height: 1; margin: 0;
+  background: linear-gradient(180deg, #fff3cf, #e9b347 55%, #a86d16); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 3px 0 rgba(0,0,0,.5)); }
+.tagline { color: var(--dim); letter-spacing: 3px; margin: 10px 0 26px; font-size: 14px; }
+.menuBtns { display: flex; flex-direction: column; gap: 10px; }
+.menuBtns button { text-align: left; font-size: 16px; padding: 13px 18px; }
+.menuFoot { margin-top: 20px; font-size: 12px; color: var(--dim); line-height: 1.7; }
+.setGrid { display: grid; grid-template-columns: 130px 1fr 54px; gap: 12px 12px; align-items: center; font-size: 14px; }
+.setGrid label { color: var(--dim); }
+.setGrid input[type=range] { width: 100%; accent-color: var(--t); }
+.setGrid select { font: inherit; background: #1b1e25; color: var(--txt); border: 1px solid rgba(255,255,255,.2); padding: 5px 8px; }
+.setGrid output { font-family: var(--num); text-align: right; }
+.setGrid .full { grid-column: 2 / 4; }
+.sectionT { font-size: 12px; letter-spacing: 3px; color: var(--t); margin: 18px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.keys { display: grid; grid-template-columns: 120px 1fr; gap: 7px 14px; font-size: 14px; }
+.keys kbd { font-family: var(--num); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-bottom-width: 2px; padding: 1px 7px; border-radius: 3px; font-size: 13px; }
+.keys span { color: var(--dim); }
+#clickToPlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; letter-spacing: 3px; background: rgba(0,0,0,.35); pointer-events: auto; cursor: pointer; }
+#loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b0c0e; z-index: 50; gap: 14px; }
+#loading .bar { width: 260px; height: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
+#loading .bar i { display: block; height: 100%; width: 40%; background: var(--t); animation: load 1s infinite ease-in-out; }
+@keyframes load { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+#errorBox { color: var(--bad); max-width: 560px; text-align: center; line-height: 1.6; }
+.matchStats { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 14px; }
+.matchStats td { padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.matchStats td:last-child { text-align: right; font-family: var(--num); font-size: 16px; }
+.bigResult { font-size: 44px; font-weight: 900; letter-spacing: 6px; margin: 0 0 4px; }
+.bigResult.win { color: var(--good); } .bigResult.lose { color: var(--bad); }
+
+/* ---------- 联机 ---------- */
+.mpRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; font-size: 14px; }
+.mpRow label { color: var(--dim); min-width: 64px; }
+.mpRow input[type=text], .mpRow select { font: inherit; background: #1b1e25; color: var(--txt); border: 1px solid rgba(255,255,255,.2); padding: 7px 10px; }
+.mpRow input[type=text] { flex: 1; min-width: 120px; }
+#mpStatus { font-size: 13px; color: var(--dim); margin: 6px 0 2px; }
+#mpStatus.ok { color: var(--good); } #mpStatus.bad { color: var(--bad); }
+#mpRooms { max-height: 220px; overflow: auto; border: 1px solid var(--line); }
+.mpRoom { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.mpRoom:last-child { border-bottom: 0; }
+.mpRoom .nm { flex: 1; }
+.mpRoom .nm b { font-family: var(--num); color: var(--t); margin-right: 8px; letter-spacing: 1px; }
+.mpRoom .meta { color: var(--dim); font-size: 12px; }
+.mpRoom button { padding: 6px 14px; }
+.mpEmpty { padding: 16px; text-align: center; color: var(--dim); font-size: 13px; }
+#netInfo { position: absolute; left: 18px; top: 296px; font-size: 12px; color: var(--dim); line-height: 1.6; }
+#netInfo b { color: var(--txt); font-family: var(--num); letter-spacing: 1px; }
+#chatBox { position: absolute; left: 18px; bottom: 84px; width: min(420px, 42vw); display: flex; flex-direction: column; gap: 3px; font-size: 13px; pointer-events: none; }
+#chatLog { display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; max-height: max(78px, calc(100vh - 440px)); overflow: hidden; }
+.chatLine { padding: 3px 9px; background: rgba(0,0,0,.45); transition: opacity .8s; word-break: break-all; }
+.chatLine .who { font-weight: 700; margin-right: 6px; }
+.chatLine .T { color: var(--t); } .chatLine .CT { color: var(--ct); } .chatLine .sys { color: #9fe39a; }
+#chatInputWrap { display: flex; gap: 6px; align-items: center; pointer-events: auto; }
+#chatInputWrap span { font-size: 12px; color: var(--t); white-space: nowrap; }
+#chatInput { flex: 1; font: inherit; background: rgba(0,0,0,.7); color: var(--txt); border: 1px solid rgba(233,179,71,.6); padding: 6px 9px; outline: none; }
+.teamBtns { display: flex; gap: 12px; margin: 18px 0 8px; }
+.teamBtns button { flex: 1; padding: 22px 10px; font-size: 18px; font-weight: 700; letter-spacing: 2px; }
+.teamBtns .bt { border-color: rgba(233,179,71,.6); color: var(--t); }
+.teamBtns .bct { border-color: rgba(105,167,255,.6); color: var(--ct); }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<!-- 全屏特效层 -->
+<div id="smokeFx" class="fx"></div>
+<canvas id="flashBurn" class="fx"></canvas>
+<div id="flashFx" class="fx"></div>
+<div id="hurtFx" class="fx"></div>
+<div id="lowHpFx" class="fx"></div>
+<div id="deathFx" class="fx"></div>
+<div id="scopeFx" class="fx"><div class="lens"></div><div class="h"></div><div class="v"></div></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="radarWrap"><canvas id="radar" width="420" height="420"></canvas><div id="locName"></div></div>
+  <div id="moneyBox"><span id="money" class="num">$800</span><span id="moneyDelta"></span><span id="buyTag" class="hidden">B 购买</span></div>
+  <div id="topBar">
+    <div class="side t"><div class="alive" id="aliveT"></div><div class="score" id="scoreT">0</div></div>
+    <div class="mid"><div id="timer">1:55</div><div id="roundNo">第 1 回合</div></div>
+    <div class="side ct"><div class="score" id="scoreCT">0</div><div class="alive" id="aliveCT"></div></div>
+  </div>
+  <div id="bombInfo"></div>
+  <div id="killFeed"></div>
+  <div id="crosshair"></div>
+  <div id="hitMarker"><i style="transform:rotate(45deg) translateY(-9px)"></i><i style="transform:rotate(135deg) translateY(-9px)"></i><i style="transform:rotate(225deg) translateY(-9px)"></i><i style="transform:rotate(315deg) translateY(-9px)"></i></div>
+  <div id="dmgDirs"></div>
+  <div id="centerMsg"></div>
+  <div id="hint"></div>
+  <div id="progress" class="hidden"><div id="progressLabel"></div><div class="track"><div id="progressFill"></div></div></div>
+  <div id="hpBox">
+    <div class="stat" id="hpStat"><svg viewBox="0 0 24 24"><path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"/></svg><span class="v" id="hpVal">100</span><div class="bar" id="hpBar" style="width:100%"></div></div>
+    <div class="stat" id="armorStat"><svg viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5z"/></svg><span class="v" id="armorVal">0</span><span class="helm" id="helmTag"></span><div class="bar" id="armorBar" style="width:0%"></div></div>
+  </div>
+  <div id="weaponBox">
+    <div id="invList"></div>
+    <div id="ammoPanel"><span id="wpnName"></span><span id="ammoMag">30</span><span id="ammoRes">/ 90</span></div>
+  </div>
+  <div id="spectate"></div>
+  <div id="fps"></div>
+  <div id="netInfo" class="hidden"></div>
+  <div id="chatBox"><div id="chatLog"></div><div id="chatInputWrap" class="hidden"><span id="chatMode">全体</span><input id="chatInput" maxlength="120" autocomplete="off"></div></div>
+</div>
+
+<div id="roundBanner"><div class="box"><div class="title" id="rbTitle"></div><div class="sub" id="rbSub"></div><div class="mvp" id="rbMvp"></div></div></div>
+
+<!-- 购买菜单（内容由脚本生成） -->
+<div id="buyMenu" class="panel hidden">
+  <header><h2>购买装备</h2><span class="timeLeft" id="buyTime"></span><span class="money" id="buyMoney">$0</span></header>
+  <div id="buyCols"></div>
+  <footer><span>点击购买，或先按分类数字键再按物品数字键 · B / Esc 关闭</span><span id="buyMsg"></span></footer>
+</div>
+
+<!-- 计分板 -->
+<div id="scoreboard" class="panel hidden"></div>
+
+<!-- 开始菜单 -->
+<div id="startScreen" class="screen">
+  <div class="menuBox panel">
+    <h1 class="logo">STRIKE<br>ZONE</h1>
+    <div class="tagline">原创战术射击 · 炸弹模式 · 单人 / 联机对战</div>
+    <div class="menuBtns">
+      <button class="primary" id="btnStart">单人比赛（对战 Bot）</button>
+      <button id="btnMulti">多人对战（联机）</button>
+      <button id="btnSettings">设置</button>
+      <button id="btnHelp">操作说明</button>
+    </div>
+    <div class="menuFoot">你是进攻方（T）。在 A 点或 B 点安放炸弹并守住 40 秒，或消灭所有防守方（CT）。<br>建议佩戴耳机：脚步声与枪声有方位。</div>
+  </div>
+</div>
+
+<!-- 暂停菜单 -->
+<div id="pauseScreen" class="screen hidden">
+  <div class="menuBox panel">
+    <h2 style="margin:0 0 18px;letter-spacing:4px">已暂停</h2>
+    <div class="menuBtns">
+      <button class="primary" id="btnResume">继续游戏</button>
+      <button id="btnSettings2">设置</button>
+      <button id="btnHelp2">操作说明</button>
+      <button id="btnRestart">重新开始比赛</button>
+      <button id="btnQuit">返回主菜单</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置（内容由脚本生成） -->
+<div id="settingsScreen" class="screen hidden">
+  <div class="menuBox panel" style="width:min(620px,94vw);max-height:92vh;overflow:auto">
+    <h2 style="margin:0 0 6px;letter-spacing:4px">设置</h2>
+    <div id="settingsBody"></div>
+    <div style="display:flex;gap:10px;margin-top:22px"><button class="primary" id="btnSetBack">返回</button><button id="btnSetReset">恢复默认</button></div>
+  </div>
+</div>
+
+<!-- 操作说明 -->
+<div id="helpScreen" class="screen hidden">
+  <div class="menuBox panel" style="width:min(640px,94vw);max-height:92vh;overflow:auto">
+    <h2 style="margin:0 0 14px;letter-spacing:4px">操作说明</h2>
+    <div class="keys">
+      <div><kbd>W A S D</kbd></div><span>移动（松开或反向按键可"急停"，静止时射击最准）</span>
+      <div><kbd>Shift</kbd></div><span>静步：移动无脚步声</span>
+      <div><kbd>C</kbd> / <kbd>Ctrl</kbd></div><span>蹲下（精度更高）。空中按下可"蹲跳"跳得更高</span>
+      <div><kbd>空格</kbd></div><span>跳跃</span>
+      <div><kbd>鼠标左键</kbd></div><span>开火 / 投掷（远）</span>
+      <div><kbd>鼠标右键</kbd></div><span>狙击枪开镜 / 投掷（近抛）/ 匕首重击</span>
+      <div><kbd>1 2 3</kbd></div><span>主武器 / 副武器 / 匕首</span>
+      <div><kbd>4</kbd></div><span>投掷物（连按切换 高爆 / 闪光 / 烟雾）</span>
+      <div><kbd>5</kbd></div><span>C4 炸弹</span>
+      <div><kbd>Q</kbd> / <kbd>滚轮</kbd></div><span>切换到上一把武器 / 切换武器</span>
+      <div><kbd>R</kbd></div><span>换弹</span>
+      <div><kbd>E</kbd></div><span>在包点按住安放炸弹（5 秒）/ 拾取地上武器</span>
+      <div><kbd>G</kbd></div><span>丢弃当前武器</span>
+      <div><kbd>F</kbd></div><span>检视武器</span>
+      <div><kbd>B</kbd></div><span>购买菜单（出生点附近、回合开始后 20 秒内）</span>
+      <div><kbd>Tab</kbd></div><span>计分板</span>
+      <div><kbd>Y</kbd> / <kbd>U</kbd></div><span>联机：全体聊天 / 队伍聊天（Enter 发送）</span>
+      <div><kbd>M</kbd></div><span>联机：更换阵营（下一回合生效）</span>
+      <div><kbd>Esc</kbd></div><span>暂停 / 设置</span>
+    </div>
+    <div class="sectionT">规则</div>
+    <div style="font-size:14px;line-height:1.8;color:var(--dim)">
+      · 回合时间 1:55。T 方：安放炸弹并使其爆炸（40 秒），或消灭全部 CT 获胜；CT 方：消灭全部 T、拆除炸弹或拖到时间结束获胜。<br>
+      · 经济：击杀奖励按武器不同（匕首 $1500、冲锋枪 $600、步枪 $300、AWP $100）；胜利 $3250~$3500；连败补偿 $1400 起每回合递增 $500，最高 $3400。<br>
+      · 存活到下一回合会保留武器与护甲；死亡后只剩默认手枪。<br>
+      · 爆头伤害 ×4，头盔可减免；击中腿部伤害较低。移动、跳跃时开枪会大幅扩散。
+    </div>
+    <div style="margin-top:20px"><button class="primary" id="btnHelpBack">返回</button></div>
+  </div>
+</div>
+
+<!-- 多人大厅 -->
+<div id="mpScreen" class="screen hidden">
+  <div class="menuBox panel" style="width:min(640px,94vw);max-height:94vh;overflow:auto">
+    <h2 style="margin:0 0 6px;letter-spacing:4px">多人对战</h2>
+    <div id="mpStatus">正在连接服务器…</div>
+    <div class="mpRow"><label>昵称</label><input type="text" id="mpName" maxlength="16" placeholder="输入你的昵称"></div>
+    <div class="sectionT">加入房间</div>
+    <div id="mpRooms"><div class="mpEmpty">暂无房间</div></div>
+    <div class="mpRow">
+      <input type="text" id="mpCode" maxlength="4" placeholder="输入 4 位房间号" style="text-transform:uppercase;max-width:170px">
+      <select id="mpTeam"><option value="auto">自动分配阵营</option><option value="T">恐怖分子（进攻）</option><option value="CT">反恐精英（防守）</option></select>
+      <button id="btnMpJoin">加入</button>
+    </div>
+    <div class="sectionT">创建房间</div>
+    <div class="mpRow">
+      <label>获胜回合</label><select id="mpRounds"><option value="5">5 回合</option><option value="8" selected>8 回合</option><option value="13">13 回合</option></select>
+      <label>Bot 难度</label><select id="mpDiff"><option value="easy">简单</option><option value="normal" selected>普通</option><option value="hard">困难</option><option value="expert">专家</option></select>
+    </div>
+    <div class="mpRow"><label>Bot 补位</label><select id="mpBots"><option value="1" selected>补满 5v5</option><option value="0">只补齐双方人数差</option></select></div>
+    <div class="menuBtns" style="margin-top:14px"><button class="primary" id="btnMpCreate">创建房间并进入</button><button id="btnMpBack">返回</button></div>
+    <div class="menuFoot">创建后把地址栏里的邀请链接（或 4 位房间号）发给朋友即可加入。空位会由 Bot 补上，随时可以中途加入。</div>
+  </div>
+</div>
+
+<!-- 选择阵营 -->
+<div id="teamScreen" class="screen hidden">
+  <div class="menuBox panel">
+    <h2 style="margin:0;letter-spacing:4px">选择阵营</h2>
+    <div class="teamBtns"><button class="bt" id="btnTeamT">恐怖分子 T</button><button class="bct" id="btnTeamCT">反恐精英 CT</button></div>
+    <div class="menuFoot" style="margin-top:6px">换队将在下一回合开始时生效。</div>
+    <div class="menuBtns" style="margin-top:14px"><button id="btnTeamBack">取消</button></div>
+  </div>
+</div>
+
+<!-- 比赛结束 -->
+<div id="matchEndScreen" class="screen hidden">
+  <div class="menuBox panel" style="width:min(560px,94vw)">
+    <div class="bigResult" id="meTitle">胜利</div>
+    <div style="color:var(--dim);letter-spacing:2px" id="meScore"></div>
+    <table class="matchStats" id="meStats"></table>
+    <div class="menuBtns"><button class="primary" id="btnAgain">再来一局</button><button id="btnMenu">返回主菜单</button></div>
+  </div>
+</div>
+
+<div id="clickToPlay" class="hidden">点击画面继续游戏</div>
+<div id="loading"><div style="font-size:28px;font-weight:900;letter-spacing:6px;color:var(--t)">STRIKE ZONE</div><div class="bar"><i></i></div><div id="loadMsg" style="color:var(--dim);font-size:13px">正在加载…</div><div id="errorBox"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>/* CDN 不可用时回退到同目录下的 three.min.js（服务器部署时一并上传） */ window.THREE || document.write('<script src="three.min.js"><\/script>');</script>
+<script>
+/*__GAME_SCRIPT__*/
+</script>
+</body>
+</html>
